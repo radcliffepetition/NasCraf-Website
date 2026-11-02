@@ -1,0 +1,862 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NasCraf Ranked</title>
+<meta name="description" content="NasCraf Ranked: competitive Minecraft PvP. Leaderboards, live matches, player profiles and ranks.">
+<meta property="og:title" content="NasCraf Ranked"><meta property="og:description" content="Leaderboards, live matches and player profiles for NasCraf Ranked.">
+<meta property="og:image" content="logo.png"><meta name="theme-color" content="#ffa41f">
+<link rel="icon" href="logo.png">
+<!-- On GitHub Pages the site reads the snapshot the ranking server uploads; locally it talks to the server directly. -->
+<meta name="nascraf-snapshot" content="auto">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Same palette as the mod's Ui.java */
+  :root {
+    --bg: #141419; --panel: rgba(18,20,24,.82); --panel-solid: #141519; --tile: rgba(18,20,24,.82); --tile-hot: rgba(42,46,55,.88);
+    --border: #2c3038; --border-hot: #5a606c; --input: #0e1014;
+    --orange: #ffa41f; --orange-hi: #ffbc4f; --orange-dk: #c9740c; --dark-text: #2a1800;
+    --white: #fff; --text: #e8e8e8; --muted: #9da0a8; --dim: #5e626b; --green: #4ade5a; --red: #e54848; --gold: #ffc93c;
+    --font: 'Pixelify Sans', ui-monospace, Consolas, monospace;
+    --slide: 160ms ease-out;
+  }
+  * { box-sizing: border-box; border-radius: 0 !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 17px/1.45 var(--font); }
+  body { min-height: 100vh; background:
+    linear-gradient(rgba(20,20,25,.86), rgba(20,20,25,.95)),
+    repeating-linear-gradient(0deg, #1a1b21 0 32px, #17181d 32px 64px); }
+  button, input { font: inherit; color: inherit; }
+  .shadow { text-shadow: 1px 1px 0 #3f3f3f; }
+  .hide { display: none !important; }
+  .muted { color: var(--muted); } .dim { color: var(--dim); } .caps { text-transform: uppercase; letter-spacing: .02em; }
+
+  /* ---- client widgets ---- */
+  .panel { background: var(--panel); border: 1px solid var(--border); }
+  .tile { background: var(--tile); border: 1px solid var(--border); padding: 7px 14px; cursor: pointer; color: var(--text); }
+  .tile:hover { background: var(--tile-hot); border-color: var(--border-hot); }
+  .tile.sel { background: var(--orange); border-color: var(--orange); color: var(--dark-text); }
+  .primary { position: relative; background: var(--orange); border: 0; color: var(--dark-text); font-weight: 700; padding: 7px 16px 9px; cursor: pointer;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.4), inset 0 -3px 0 var(--orange-dk); }
+  .primary:hover { background: var(--orange-hi); }
+  .primary:active { box-shadow: inset 0 -1px 0 var(--orange-dk); padding-top: 9px; padding-bottom: 7px; }
+  .field { display: flex; align-items: center; gap: 8px; background: var(--input); border: 1px solid var(--border); padding: 0 8px; }
+  .field:focus-within { border-color: var(--border-hot); }
+  .field input { flex: 1; background: none; border: 0; outline: none; padding: 7px 0; min-width: 0; }
+  .field input::placeholder { color: var(--dim); }
+  .av { width: 22px; height: 22px; flex: none; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px;
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,.35); position: relative; text-shadow: 1px 1px 0 #3f3f3f; }
+  .av i { position: absolute; right: -2px; bottom: -2px; width: 6px; height: 6px; border: 1px solid #0e1014; }
+  .badge { background: var(--red); color: #fff; font-size: 11px; min-width: 15px; height: 15px; padding: 0 3px; display: inline-grid; place-items: center; border: 1px solid #7a1a1a; }
+  .x { background: none; border: 0; cursor: pointer; padding: 4px; display: grid; place-items: center; }
+  .x:hover { background: rgba(255,255,255,.12); }
+  svg.ic { display: block; shape-rendering: crispEdges; }
+
+  /* ---- top bar (logo left, buttons + account dropdown right) ---- */
+  .bar { display: flex; align-items: center; gap: 8px; padding: 16px 28px; max-width: 1380px; margin: 0 auto; }
+  .barwrap { border-bottom: 1px solid var(--border); background: rgba(14,16,20,.75); position: sticky; top: 0; z-index: 25; }
+  .bar img { height: 74px; image-rendering: pixelated; margin-right: auto; }
+  .navbtn { display: flex; align-items: center; gap: 6px; }
+  .acct { position: relative; }
+  .acct-btn { display: flex; align-items: center; gap: 8px; min-width: 190px; justify-content: space-between; }
+  .acct-btn .caret { color: var(--muted); }
+  .drop { position: absolute; right: 0; top: calc(100% + 4px); width: 330px; z-index: 20; overflow: hidden; pointer-events: none; }
+  .drop-inner { background: var(--panel-solid); border: 1px solid var(--border); transform: translateY(-105%); transition: transform var(--slide); padding: 12px; }
+  .acct.open .drop { pointer-events: auto; }
+  .acct.open .drop-inner { transform: none; }
+  .drop label { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  .drop .row { display: flex; gap: 6px; margin-top: 10px; } .drop .row > * { flex: 1; }
+  .menuitem { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: 0; padding: 7px 6px; cursor: pointer; color: var(--muted); text-align: left; }
+  .menuitem:hover { color: #fff; box-shadow: inset 2px 0 0 var(--orange); padding-left: 10px; }
+  .menuitem .badge { margin-left: auto; }
+  .me-head { display: flex; gap: 10px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
+  .me-head .av { width: 36px; height: 36px; font-size: 18px; }
+  .msg { font-size: 13px; margin-top: 8px; min-height: 18px; }
+
+  /* ---- pages ---- */
+  main { max-width: 1380px; margin: 0 auto; padding: 20px 28px 40px; }
+  .cols { display: grid; grid-template-columns: 360px 1fr; gap: 16px; align-items: start; margin-top: 16px; }
+  @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } .acct-btn { min-width: 0; } .navbtn span.lbl { display: none; } .bar img { height: 40px; } }
+  .ph { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  .ph b { font-weight: 600; color: #fff; }
+  .ph .right { margin-left: auto; }
+  .redsq { width: 6px; height: 6px; background: var(--red); display: inline-block; }
+  .live-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px; padding: 5px 10px; align-items: center; cursor: pointer; }
+  .live-row:hover { background: rgba(255,255,255,.06); }
+  .live-row .r { text-align: right; } .live-row .c { color: var(--gold); text-align: center; white-space: nowrap; }
+  .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .counts { padding: 8px 10px; color: var(--muted); font-size: 13px; display: grid; gap: 3px; }
+  .counts b { color: var(--text); font-weight: 400; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 3px; padding: 10px; justify-content: center; }
+  table { width: 100%; border-collapse: collapse; }
+  th { font-weight: 400; color: var(--muted); text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 13px; }
+  td { padding: 5px 10px; }
+  tbody tr { cursor: pointer; } tbody tr:hover td { background: rgba(255,255,255,.12); }
+  .num { text-align: right; } .val { color: var(--orange); }
+  .who { display: flex; gap: 8px; align-items: center; }
+  .empty { text-align: center; padding: 34px 10px; color: var(--muted); }
+  .empty small { display: block; color: var(--dim); font-size: 12px; margin-top: 4px; text-transform: uppercase; }
+  .news { max-width: 560px; margin: 40px auto; text-align: center; padding: 40px 20px; }
+  .news h2 { margin: 0 0 6px; font-weight: 600; color: #fff; }
+  footer { border-top: 1px solid var(--border); background: rgba(14,16,20,.75); margin-top: 20px; }
+  .fwrap { max-width: 1380px; margin: 0 auto; padding: 26px 28px 16px; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 24px; }
+  .fwrap h4 { margin: 0 0 8px; color: #fff; font-weight: 600; font-size: 15px; }
+  .fwrap a, .fwrap span.l { display: block; color: var(--muted); cursor: pointer; text-decoration: none; font-size: 15px; padding: 2px 0; }
+  .fwrap a:hover { color: var(--orange); }
+  .fbottom { max-width: 1380px; margin: 0 auto; padding: 10px 28px 22px; display: flex; justify-content: space-between; color: var(--dim); font-size: 14px; border-top: 1px solid rgba(44,48,56,.6); }
+  @media (max-width: 860px) { .fwrap { grid-template-columns: 1fr 1fr; } }
+
+  /* ---- community home ---- */
+  .hero { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+  .hero-main { padding: 28px 30px; position: relative; overflow: hidden;
+    background: linear-gradient(120deg, rgba(255,164,31,.16), rgba(18,20,24,.85) 55%), var(--panel); }
+  .hero-main::after { content: ''; position: absolute; right: -40px; bottom: -40px; width: 260px; height: 260px;
+    background: repeating-linear-gradient(45deg, rgba(255,164,31,.07) 0 12px, transparent 12px 24px); }
+  .hero h1 { margin: 0 0 8px; font-size: 40px; line-height: 1.05; color: #fff; text-shadow: 3px 3px 0 #3f2a00; }
+  .hero h1 em { font-style: normal; color: var(--orange); }
+  .hero p { margin: 0 0 18px; color: var(--muted); max-width: 520px; font-size: 18px; }
+  .hero .ctas { display: flex; gap: 8px; flex-wrap: wrap; position: relative; z-index: 1; }
+  .bigstats { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); border: 1px solid var(--border); }
+  .bigstats div { background: rgba(18,20,24,.92); padding: 16px 18px; }
+  .bigstats b { display: block; font-size: 34px; color: var(--orange); line-height: 1.1; }
+  .bigstats span { color: var(--muted); font-size: 14px; text-transform: uppercase; }
+  .bigstats .on b { color: var(--green); }
+  .podium { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; padding: 14px; align-items: end; }
+  .pod { text-align: center; padding: 14px 8px; background: rgba(255,255,255,.03); border: 1px solid var(--border); cursor: pointer; }
+  .pod:hover { border-color: var(--border-hot); }
+  .pod .place { font-size: 26px; font-weight: 700; }
+  .pod .av { margin: 6px auto; width: 48px; height: 48px; font-size: 24px; }
+  .pod.p1 { padding-top: 26px; border-color: rgba(255,201,60,.6); background: linear-gradient(rgba(255,201,60,.12), transparent); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  .feed-row { display: grid; grid-template-columns: 90px 1fr auto; gap: 10px; padding: 7px 12px; border-bottom: 1px solid rgba(44,48,56,.6); align-items: center; font-size: 16px; }
+  .feed-row:last-child { border-bottom: 0; }
+  .modes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; padding: 12px; }
+  .mcard { border: 1px solid var(--border); background: rgba(255,255,255,.03); padding: 12px; cursor: pointer; }
+  .mcard:hover { border-color: var(--border-hot); }
+  .mcard .ic2 { font-size: 22px; color: var(--orange); }
+  .mcard .n { color: #fff; font-weight: 600; font-size: 18px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 12px; }
+  .step { border: 1px solid var(--border); padding: 14px; background: rgba(255,255,255,.03); }
+  .step .k { width: 30px; height: 30px; background: var(--orange); color: var(--dark-text); display: grid; place-items: center; font-weight: 700; margin-bottom: 8px; box-shadow: inset 0 -3px 0 var(--orange-dk); }
+  .step b { color: #fff; display: block; margin-bottom: 3px; }
+  .faq details { border-bottom: 1px solid rgba(44,48,56,.6); }
+  .faq summary { cursor: pointer; padding: 10px 12px; color: #fff; list-style: none; display: flex; justify-content: space-between; }
+  .faq summary::after { content: '+'; color: var(--orange); }
+  .faq details[open] summary::after { content: '−'; }
+  .faq details p { margin: 0; padding: 0 12px 12px; color: var(--muted); }
+  @media (max-width: 960px) { .hero, .grid2, .steps { grid-template-columns: 1fr; } .hero h1 { font-size: 30px; } }
+
+  /* tabs under the banner */
+  .sitetabs { display: flex; gap: 2px; margin-top: 18px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+  .sitetabs button { background: none; border: 0; padding: 12px 20px; cursor: pointer; color: var(--muted); font-size: 18px; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+  .sitetabs button:hover { color: #fff; background: rgba(255,255,255,.04); }
+  .sitetabs button.on { color: #fff; border-bottom-color: var(--orange); background: rgba(255,164,31,.07); }
+  [data-pane] .grid2:first-child, [data-pane] > .panel:first-child { margin-top: 16px; }
+
+  /* player heads */
+  .av img { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+  .av.head { background: #222 !important; }
+
+  /* profile page */
+  .prof-top { display: flex; gap: 26px; align-items: center; padding: 28px 30px;
+    background: linear-gradient(120deg, rgba(255,164,31,.14), rgba(18,20,24,.85) 60%), var(--panel); }
+  .prof-top .av { width: 128px; height: 128px; font-size: 64px; box-shadow: 0 6px 0 rgba(0,0,0,.35); }
+  .prof-top .av i { width: 18px; height: 18px; right: -5px; bottom: -5px; border-width: 3px; }
+  .prof-name { font-size: 54px; font-weight: 700; color: #fff; line-height: 1; text-shadow: 3px 3px 0 #3f2a00; word-break: break-all; }
+  .prof-sub { margin-top: 8px; font-size: 19px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; }
+  .prof-actions { margin-left: auto; display: flex; gap: 8px; align-self: flex-start; }
+  .bio { padding: 16px 18px; font-size: 18px; white-space: pre-wrap; word-wrap: break-word; }
+  .bio.empty-bio { color: var(--dim); font-style: italic; }
+  .bio-edit textarea { width: 100%; min-height: 90px; resize: vertical; background: var(--input); border: 1px solid var(--border); color: var(--text); font: inherit; padding: 10px; outline: none; }
+  .bio-edit textarea:focus { border-color: var(--border-hot); }
+  .back { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0; margin-bottom: 10px; font-size: 16px; }
+  .back:hover { color: #fff; }
+  @media (max-width: 760px) { .prof-top { flex-direction: column; align-items: flex-start; } .prof-name { font-size: 36px; } .prof-actions { margin-left: 0; } }
+
+  /* verified badge */
+  .vb { display: inline-block; flex: none; align-self: center; width: 16px; height: 16px; min-width: 16px; max-height: 16px; object-fit: contain; vertical-align: -2px; margin-left: 4px; image-rendering: pixelated; }
+  .prof-name .vb { width: 44px; height: 44px; min-width: 44px; max-height: 44px; vertical-align: -4px; margin-left: 10px; }
+
+  /* loading icon on buttons (square pixel spinner) */
+  .spin { display: inline-block; width: 14px; height: 14px; vertical-align: -2px; margin-right: 6px; position: relative; animation: spin 0.8s steps(8) infinite; }
+  .spin::before { content: ''; position: absolute; inset: 0; border: 3px solid rgba(42,24,0,.25); border-top-color: var(--dark-text); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  button.busy { pointer-events: none; opacity: .9; }
+  button { white-space: nowrap; }
+
+  /* ---- overlays: messages panel slides from the left, windows slide down ---- */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 30; display: none; }
+  .scrim.show { display: block; }
+  .side { position: fixed; left: 0; top: 0; bottom: 0; width: min(330px, 92vw); background: rgba(20,21,25,.95); border-right: 1px solid var(--border);
+    z-index: 31; transform: translateX(-102%); transition: transform var(--slide); display: flex; flex-direction: column; }
+  .side.open { transform: none; }
+  .side .head { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid var(--border); min-height: 56px; }
+  .side .title { font-size: 26px; font-weight: 700; color: #fff; line-height: 1; }
+  .side .sub { font-size: 12px; display: flex; gap: 6px; align-items: center; }
+  .side .list { flex: 1; overflow-y: auto; }
+  .conv { display: flex; gap: 10px; padding: 6px 10px; cursor: pointer; align-items: center; }
+  .conv:hover { background: rgba(255,255,255,.08); }
+  .conv .meta { flex: 1; min-width: 0; } .conv .when { font-size: 12px; color: var(--dim); }
+  .side .foot { display: flex; justify-content: space-between; padding: 6px 10px; border-top: 1px solid var(--border); font-size: 13px; color: var(--dim); cursor: pointer; }
+  .side .foot b { color: var(--orange); font-weight: 400; } .side .foot:hover b { color: var(--orange-hi); }
+  .bubbles { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 3px; }
+  .bub { max-width: 74%; padding: 4px 8px; word-wrap: break-word; }
+  .bub.me { align-self: flex-end; background: #e8941b; color: #201300; } .bub.them { align-self: flex-start; background: #262a32; }
+  .bub.pending { background: #9a6a26; }
+  .stamp { align-self: center; font-size: 12px; color: var(--dim); margin: 4px 0; }
+  .compose { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--border); }
+  .compose .field { flex: 1; }
+
+  .winwrap { position: fixed; inset: 0; z-index: 32; display: flex; justify-content: center; align-items: flex-start; padding: 7vh 12px; overflow: auto; pointer-events: none; }
+  .win { width: min(560px, 100%); background: rgba(20,21,25,.97); border: 1px solid var(--border); transform: translateY(-30px); opacity: 0;
+    transition: transform var(--slide), opacity var(--slide); pointer-events: none; }
+  .winwrap.open .win { transform: none; opacity: 1; pointer-events: auto; }
+  .win .head { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .win .head b { color: #fff; font-weight: 600; } .win .head .x { margin-left: auto; }
+  .win .body { padding: 12px; }
+  .ftabs { display: flex; border-bottom: 1px solid var(--border); }
+  .ftabs button { flex: 1; background: none; border: 0; padding: 7px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; }
+  .ftabs button:hover { color: var(--text); } .ftabs button.on { color: #fff; border-bottom-color: var(--orange); }
+  .frow { display: flex; align-items: center; gap: 10px; padding: 6px 4px; }
+  .frow:hover { background: rgba(255,255,255,.06); }
+  .frow .meta { flex: 1; min-width: 0; }
+  .sbtn { border: 0; padding: 3px 10px; cursor: pointer; background: #262a32; color: var(--text); }
+  .sbtn:hover { background: #3a3f49; } .sbtn.go { background: var(--orange); color: #201300; } .sbtn.go:hover { background: var(--orange-hi); }
+  .sbtn.danger { background: var(--red); color: #fff; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+  .cell { background: var(--panel); border: 1px solid var(--border); padding: 8px 10px; }
+  .cell .t { font-size: 12px; color: var(--muted); }
+  .cell .big { font-size: 20px; font-weight: 700; color: var(--orange); }
+  .prog { height: 3px; background: #24272e; margin: 6px 0 3px; } .prog i { display: block; height: 100%; }
+  .recent div { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid rgba(44,48,56,.7); font-size: 14px; }
+  .w { color: var(--green); } .l { color: var(--red); }
+  a.plink { color: var(--orange); cursor: pointer; text-decoration: none; } a.plink:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="barwrap"><div class="bar">
+  <img src="logo.png" alt="NasCraf Ranked">
+  <button class="tile navbtn" id="navNews"><span id="icNews"></span><span class="lbl">News &amp; Updates</span></button>
+  <button class="tile navbtn sel" id="navStats"><span id="icStats"></span><span class="lbl">Stats</span></button>
+  <div class="acct" id="acct">
+    <button class="tile acct-btn" id="acctBtn"><span class="who" id="acctLabel">Sign in</span><span class="caret">▾</span></button>
+    <div class="drop"><div class="drop-inner" id="dropInner"></div></div>
+  </div>
+</div></div>
+
+<main>
+  <section id="pageStats">
+  <div class="hero">
+    <div class="panel hero-main">
+      <h1>Climb the <em>NasCraf</em><br>Ranked ladder</h1>
+      <p>Competitive 1v1 PvP across 7 fighting gamemodes plus the Mob Run minigame. Play your placements, earn Season Points, and fight your way from Coal to Netherite and Champion.</p>
+      <div class="ctas"><button class="primary" id="ctaJoin">How to join</button><button class="tile" id="ctaBoard">View leaderboards</button><button class="tile" id="ctaAcct">Sign in</button></div>
+    </div>
+    <div class="bigstats" id="bigstats">
+      <div class="on"><b id="bsOnline">–</b><span>Playing now</span></div>
+      <div><b id="bsPlayers">–</b><span>Registered players</span></div>
+      <div><b id="bsToday">–</b><span>Matches today</span></div>
+      <div><b id="bsTotal">–</b><span>Matches played</span></div>
+    </div>
+  </div>
+
+  <div class="sitetabs" id="siteTabs">
+    <button data-tab="overview" class="on">Overview</button><button data-tab="leaderboards">Leaderboards</button><button data-tab="gamemodes">Gamemodes</button><button data-tab="howto">How to Join</button><button data-tab="faq">FAQ &amp; Rules</button>
+  </div>
+  <div data-pane="overview">
+  <div class="grid2">
+    <div class="panel"><div class="ph"><b>TOP PLAYERS</b><span class="right dim" id="seasonTag">SEASON 1</span></div><div class="podium" id="podium"></div></div>
+    <div class="panel"><div class="ph"><b>RECENT MATCHES</b><span class="right dim">LATEST RESULTS</span></div><div id="feed"></div></div>
+  </div>
+    <div class="grid2">
+
+      <div class="panel">
+        <div class="ph"><span class="redsq"></span><b>LIVE MATCHES</b><span class="right dim" id="liveN"></span></div>
+        <div id="liveList"></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><b>SERVER</b><span class="right" id="srvState"></span></div>
+        <div class="counts" id="counts"></div>
+      </div>
+    
+    </div>
+  </div>
+  <div data-pane="leaderboards" class="hide">
+    <div class="panel">
+      <div class="ph"><b>LEADERBOARDS</b><span class="right dim">CLICK A PLAYER FOR THEIR STATS</span></div>
+      <div class="tabs" id="tabs"></div>
+      <table><thead><tr><th style="width:60px">#</th><th>PLAYER</th><th>RANK</th><th class="num" id="valHead">SP</th><th class="num">W / L</th></tr></thead>
+        <tbody id="board"></tbody></table>
+      <div class="empty hide" id="boardEmpty"></div>
+    </div>
+  </div>
+  <div data-pane="gamemodes" class="hide">
+  <div class="panel" style="margin-top:16px"><div class="ph"><b>GAMEMODES</b><span class="right dim">EVERY MODE HAS ITS OWN RANK</span></div><div class="modes-grid" id="modesGrid"></div></div>
+  </div>
+  <div data-pane="howto" class="hide">
+  <div class="panel" style="margin-top:16px" id="howto"><div class="ph"><b>HOW TO JOIN</b></div>
+    <div class="steps">
+      <div class="step"><div class="k">1</div><b>Install the mod</b><span class="muted">Add the NasCraf Ranked mod to a Fabric 26.2 profile (CurseForge works). It updates itself after that.</span></div>
+      <div class="step"><div class="k">2</div><b>Make an account</b><span class="muted">Open Minecraft and register on the NasCraf Ranked menu, or use Sign in at the top of this page.</span></div>
+      <div class="step"><div class="k">3</div><b>Queue up</b><span class="muted">Press QUEUE FOR RANKED, pick a gamemode, and play your 3 placement matches to get ranked.</span></div>
+    </div>
+  </div>
+  </div>
+  <div data-pane="faq" class="hide">
+  <div class="grid2" style="margin-top:0">
+    <div class="panel faq"><div class="ph"><b>FAQ</b></div>
+      <details><summary>How are ranks decided?</summary><p>Each gamemode has a hidden ELO. Your first 3 matches are placements that start you anywhere from Coal I to Iron III. After that every round you win or lose moves your ELO, and Season Points (SP) from all modes decide your overall rank.</p></details>
+      <details><summary>What is Champion?</summary><p>One player per gamemode: the #1 player on that mode's leaderboard with at least the Champion ELO.</p></details>
+      <details><summary>Can I lose ELO by winning?</summary><p>No. Winning a match never loses ELO and losing never gains it.</p></details>
+      <details><summary>What are coins for?</summary><p>You earn coins from every ranked match and spend them in the in-game Item Shop on emotes and death animations.</p></details>
+      <details><summary>What are parties?</summary><p>Groups of up to 8 friends. The host picks two members to fight unranked duels in the arena, and everyone else can spectate.</p></details>
+    </div>
+    <div class="panel faq"><div class="ph"><b>RULES</b></div>
+      <details open><summary>Play fair</summary><p>No hacked clients, macros or exploits. Matches are recorded and suspicious results can be removed.</p></details>
+      <details><summary>Don't leave matches</summary><p>Leaving a started match counts as a forfeit and loses the remaining rounds.</p></details>
+      <details><summary>Be respectful</summary><p>No harassment, hate speech or spam in messages or chat. You can set messages to friends-only at any time.</p></details>
+      <details><summary>One account each</summary><p>Don't boost your rank with alt accounts or arranged matches.</p></details>
+    </div>
+  </div>
+  </div>
+  </section>
+
+
+
+
+
+  <section id="pageProfile" class="hide"></section>
+
+  <section id="pageNews" class="hide">
+    <div class="panel news">
+      <div id="icNewsBig" style="display:flex;justify-content:center;margin-bottom:14px"></div>
+      <h2>News &amp; Updates</h2>
+      <div class="muted">Coming soon</div>
+      <div class="dim caps" style="font-size:12px;margin-top:6px">Patch notes and announcements will show up here</div>
+    </div>
+  </section>
+</main>
+<footer>
+  <div class="fwrap">
+    <div><img src="logo.png" alt="" style="height:54px;image-rendering:pixelated"><div class="muted" style="margin-top:8px;max-width:340px">The competitive ranked PvP community for NasCraf. Queue, climb, and become Champion.</div></div>
+    <div><h4>Play</h4><a data-go="howto">How to join</a><a data-go="board">Leaderboards</a><a data-go="live">Live matches</a></div>
+    <div><h4>Community</h4><a data-go="news">News &amp; Updates</a><a data-go="faq">FAQ &amp; Rules</a><a data-go="account">Your account</a></div>
+    <div><h4>Server</h4><span class="l" id="footR"></span><span class="l" id="footVer"></span></div>
+  </div>
+  <div class="fbottom"><span id="footL">NasCraf Ranked</span><span>Not affiliated with Mojang or Microsoft</span></div>
+</footer>
+
+<!-- messages side panel (same as the in-game one) -->
+<div class="scrim" id="scrim"></div>
+<aside class="side" id="side"></aside>
+<!-- windows: friends / player stats -->
+<div class="winwrap" id="winwrap"><div class="win" id="win"></div></div>
+
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ---------- pixel icons: the exact same art as the mod's Icons.java
+const ART = {
+  CHAT: ['.##########.','############','##........##','##.######.##','##........##','##.####...##','##........##','############','.##########.','..###.......','..##........','..#.........'],
+  ADD_FRIEND: ['..........+.','....###..+++','...#####..+.','...#####....','...#####....','....###.....','............','..#######...','.#########..','.#########..','.#########..','.#########..'],
+  FRIEND: ['....####....','...######...','...######...','...######...','....####....','............','..########..','.##########.','.##########.','.##########.','.##########.','............'],
+  SEARCH: ['.###....','#...#...','#...#...','#...#...','.####...','....##..','.....##.','......##'],
+  CLOSE: ['##....##','###..###','.######.','..####..','..####..','.######.','###..###','##....##'],
+  COIN: ['..####..','.#++++#.','#++##++#','#+#++++#','#+#++++#','#++##++#','.#++++#.','..####..'],
+  CROWN: ['............','+....+....+.','##...#...##.','##..###..##.','###.###.###.','###########.','###########.','###+###+###.','###########.','###########.','............','............'],
+  NEWS: ['############','#..........#','#.########.#','#..........#','#.####.###.#','#.####.....#','#.####.###.#','#..........#','#.########.#','#..........#','############','............'],
+  STATS: ['............','.........##.','.........##.','......##.##.','......##.##.','...##.##.##.','...##.##.##.','##.##.##.##.','##.##.##.##.','##.##.##.##.','############','............'],
+};
+function icon(name, px = 1, main = '#b8bcc6', accent = '#ffa41f') {
+  const rows = ART[name], w = rows[0].length, h = rows.length;
+  let r = '';
+  rows.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch !== '.') r += `<rect x="${x}" y="${y}" width="1" height="1" fill="${ch === '+' ? accent : main}"/>`;
+  }));
+  return `<svg class="ic" width="${w * px}" height="${h * px}" viewBox="0 0 ${w} ${h}">${r}</svg>`;
+}
+const PALETTE = ['#3b6ea8', '#8a4fb0', '#3e9a6b', '#b0663a', '#a8434f', '#4f8f9e', '#8e8a3c', '#5b5fb8'];
+const hashOf = s => { let h = 0; for (const c of String(s).toLowerCase()) h = (Math.imul(h, 31) + c.charCodeAt(0)) | 0; return h; };
+const STATUS = { online: ['Online', 'var(--green)'], in_match: ['In a match', 'var(--red)'], queueing: ['In queue', 'var(--gold)'] };
+const statusText = s => (STATUS[s] || ['Offline'])[0];
+const statusColor = s => (STATUS[s] || [0, 'var(--dim)'])[1];
+// Player head from the player's real Minecraft skin (looked up by account UUID, which is exact; by name if we
+// don't know the UUID yet). Steve is only shown if the head can't be loaded.
+const STEVE = (() => {
+  const C = { H: '#2f1f0f', S: '#b4846d', W: '#ffffff', B: '#523d89', N: '#94604a', M: '#6a4030' };
+  const rows = ['HHHHHHHH', 'HHHHHHHH', 'HSSSSSSH', 'SSSSSSSS', 'SWBSSBWS', 'SSSNNSSS', 'SSMSSMSS', 'SSMMMMSS'];
+  let r = ''; rows.forEach((row, y) => [...row].forEach((c, x) => r += `<rect x='${x}' y='${y}' width='1' height='1' fill='${C[c]}'/>`));
+  return 'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' shape-rendering='crispEdges'>${r}</svg>`).replace(/'/g, '%27');
+})();
+function headUrl(mc, uuid, px, name) {
+  if (STATIC) return (snap && snap.heads && snap.heads[String(name || mc || '').toLowerCase()]) || STEVE;
+  const who = uuid || mc;
+  return who ? `/api/head/${encodeURIComponent(who)}` : STEVE; // served by the ranking server from the real skin
+}
+function av(name, status, size, mc, uuid, icon) {
+  const st = size ? `width:${size}px;height:${size}px;` : '';
+  if (icon && /^[a-z_]+$/.test(icon)) // profile icon bought in the shop
+    return `<span class="av" style="${st}background:#1c1f26"><img alt="" src="icons/${icon}.png" style="inset:12%;width:76%;height:76%">${status ? `<i style="background:${statusColor(status)}"></i>` : ''}</span>`;
+  const px = Math.max(32, Math.min(128, (size || 22) * 2));
+  return `<span class="av" style="${st}background:#2a2a2a"><img alt="" loading="lazy" src="${headUrl(mc || name, uuid, px, name)}" onerror="this.onerror=null;this.src='${STEVE}'">${status ? `<i style="background:${statusColor(status)}"></i>` : ''}</span>`;
+}
+const vb = v => v ? '<img class="vb" src="verified.png" alt="Verified" title="Verified">' : '';
+const rank = r => r ? `<span style="color:${esc(r.color)}">${esc(r.name)}</span>` : '<span style="color:#aaa">Unranked</span>';
+const MODE_ICON = { sword: '⚔', axe: '⚒', nethpot: '⚗', crystal: '◆', mace: '▼', uhc: '♥', smp: '⛨', mobrun: '☠' };
+function ago(at) { const s = Math.max(0, (Date.now() - at) / 1000 | 0); return s < 60 ? 'now' : s < 3600 ? (s / 60 | 0) + 'm' : s < 86400 ? (s / 3600 | 0) + 'h' : (s / 86400 | 0) + 'd'; }
+function clock(at) { const d = new Date(at), t = d.toDateString() === new Date().toDateString(); return (t ? '' : `${d.getMonth() + 1}/${d.getDate()} `) + `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`; }
+
+// ---------- API (same endpoints the mod uses)
+// Public (GitHub Pages) mode: read-only, served from the snapshot the ranking server uploads every 2 minutes.
+// "auto" on GitHub Pages: read snapshot.json from the "data" branch of the repo this page is hosted from.
+const SNAP_URL = (() => {
+  const v = (document.querySelector('meta[name=nascraf-snapshot]') || {}).content || '';
+  if (v !== 'auto') return v;
+  if (!location.hostname.endsWith('.github.io')) return '';
+  const owner = location.hostname.split('.')[0];
+  const first = location.pathname.split('/').filter(Boolean)[0];
+  const repo = first && !first.includes('.') ? first : location.hostname;
+  return `https://api.github.com/repos/${owner}/${repo}/contents/snapshot.json?ref=data`;
+})();
+const STATIC = !!SNAP_URL && !/^(localhost|127\.|192\.168\.|10\.)/.test(location.hostname);
+let snap = null, snapAt = 0;
+async function loadSnapshot(force) {
+  if (snap && !force && Date.now() - snapAt < 110000) return snap;
+  const r = await fetch(SNAP_URL + (SNAP_URL.includes('?') ? '&' : '?') + 't=' + Date.now(), { headers: { Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' });
+  if (!r.ok) throw new Error(r.status === 403 ? 'Too many refreshes, try again in a few minutes' : 'Stats are updating, try again shortly');
+  snap = await r.json(); snapAt = Date.now();
+  return snap;
+}
+async function staticApi(path) {
+  const s = await loadSnapshot();
+  const m = (re) => re.exec(path.split('?')[0]);
+  let x;
+  if (path.startsWith('/api/status')) return s.status;
+  if (path.startsWith('/api/matches/live')) return { matches: s.live };
+  if (path.startsWith('/api/community')) return s.community;
+  if (path.startsWith('/api/ranks')) return s.ranks;
+  if (path.startsWith('/api/version')) return s.version;
+  if ((x = m(/^\/api\/leaderboard\/([^/]+)$/))) return { mode: x[1], entries: (s.leaderboards[decodeURIComponent(x[1])] || []).slice(0, 100) };
+  if ((x = m(/^\/api\/profile\/([^/]+)$/))) { const p = s.profiles[decodeURIComponent(x[1]).toLowerCase()]; if (!p) throw new Error('No such player'); return p; }
+  throw new Error('Sign in, messages and friends are in the NasCraf Ranked game');
+}
+let token = ''; try { token = STATIC ? '' : (localStorage.getItem('ncToken') || ''); } catch {}
+async function api(path, body) {
+  if (STATIC) { if (body) throw new Error('Sign in from the NasCraf Ranked game to do that'); return staticApi(path); }
+  const opt = { method: body ? 'POST' : 'GET', headers: {}, cache: 'no-store' };
+  if (token) opt.headers.Authorization = 'Bearer ' + token;
+  if (body) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+  const r = await fetch(path, opt);
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401 && token && !path.startsWith('/api/auth')) signOutLocal();
+  if (!r.ok) throw new Error(data.error || 'HTTP ' + r.status);
+  return data;
+}
+
+// ---------- top bar
+$('icNews').innerHTML = icon('NEWS', 1); $('icStats').innerHTML = icon('STATS', 1, '#b8bcc6');
+$('icNewsBig').innerHTML = icon('NEWS', 4, '#3a3f49');
+function showPage(p) {
+  $('pageStats').classList.toggle('hide', p !== 'stats'); $('pageNews').classList.toggle('hide', p !== 'news');
+  $('pageProfile').classList.toggle('hide', p !== 'profile');
+  $('navStats').classList.toggle('sel', p === 'stats'); $('navNews').classList.toggle('sel', p === 'news');
+  if (p !== 'profile') window.scrollTo(0, 0);
+}
+function showTab(t) {
+  document.querySelectorAll('#siteTabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  document.querySelectorAll('[data-pane]').forEach(x => x.classList.toggle('hide', x.dataset.pane !== t));
+  if (t === 'leaderboards') loadBoard();
+}
+$('siteTabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); };
+$('navNews').onclick = () => showPage('news');
+$('navStats').onclick = () => showPage('stats');
+
+// ---------- account dropdown
+let me = null, friendsData = null;
+function signOutLocal() { token = ''; me = null; friendsData = null; try { localStorage.removeItem('ncToken'); } catch {} renderAccount(); closeSide(); }
+$('acctBtn').onclick = e => { e.stopPropagation(); $('acct').classList.toggle('open'); };
+document.addEventListener('click', e => { if (!$('acct').contains(e.target)) $('acct').classList.remove('open'); });
+function unreadTotal() { return friendsData ? friendsData.friends.reduce((a, f) => a + (f.unread || 0), 0) : 0; }
+function renderAccount() {
+  if (STATIC) {
+    if ($('ctaAcct')) $('ctaAcct').classList.add('hide');
+    const age = snap ? Math.max(0, Math.round((Date.now() - snap.generated) / 60000)) : null;
+    $('acctLabel').innerHTML = `<span style="width:8px;height:8px;background:${snap && age < 10 ? 'var(--green)' : 'var(--dim)'};display:inline-block"></span><span>${snap ? (age < 1 ? 'Live stats' : `Updated ${age}m ago`) : 'Loading stats'}</span>`;
+    $('dropInner').innerHTML = `<div style="font-weight:600;color:#fff">Public stats site</div>
+      <div class="muted" style="font-size:14px;margin-top:6px">Leaderboards, profiles and matches here update every couple of minutes from the NasCraf Ranked servers.</div>
+      <div class="muted" style="font-size:14px;margin-top:8px">To sign in, chat with friends, open the shop or queue, play <b style="color:#fff">NasCraf Ranked</b> in Minecraft.</div>
+      <div class="row"><button class="primary" id="howBtn">How to join</button></div>`;
+    $('howBtn').onclick = () => { $('acct').classList.remove('open'); go('howto'); };
+    return;
+  }
+  if ($('ctaAcct')) $('ctaAcct').textContent = me ? 'My profile' : 'Sign in';
+  if (!me) {
+    $('acctLabel').innerHTML = `${icon('FRIEND', 1)}<span>Sign in</span>`;
+    $('dropInner').innerHTML = `
+      <div style="font-weight:600;color:#fff">NasCraf Ranked account</div>
+      <div class="dim" style="font-size:12px">Same account you use in the game</div>
+      <label>USERNAME</label><div class="field"><input id="lu" maxlength="16" autocomplete="username"></div>
+      <label>PASSWORD</label><div class="field"><input id="lp" type="password" maxlength="64" autocomplete="current-password"></div>
+      <div class="row"><button class="primary" id="lin">Sign in</button><button class="tile" id="lreg">Register</button></div>
+      <div class="msg" id="lmsg"></div>`;
+    const go = reg => login(reg);
+    $('lin').onclick = () => go(false); $('lreg').onclick = () => go(true);
+    $('lp').onkeydown = e => { if (e.key === 'Enter') go(false); };
+    return;
+  }
+  const u = unreadTotal(), req = friendsData ? friendsData.incoming.length : 0;
+  $('acctLabel').innerHTML = `${av(me.name, 'online', 0, me.mcName, me.mcUuid, me.icon)}<span class="nm" style="max-width:160px">${esc(me.name)}</span>${vb(me.verified)}${u + req ? `<span class="badge">${u + req}</span>` : ''}`;
+  $('dropInner').innerHTML = `
+    <div class="me-head">${av(me.name, 'online', 36, me.mcName, me.mcUuid, me.icon)}<div style="min-width:0"><div style="color:#fff;font-weight:600" class="nm">${esc(me.name)}${vb(me.verified)}</div>
+      <div style="font-size:13px">${rank(me.overall)} · ${me.sp} SP</div>
+      <div style="font-size:13px;display:flex;gap:5px;align-items:center;color:var(--gold)">${icon('COIN', 1, '#8a5a00', '#ffc93c')} ${me.coins ?? 0} coins</div></div></div>
+    <button class="menuitem" data-a="stats">${icon('FRIEND', 1)} My profile</button>
+    <button class="menuitem" data-a="messages">${icon('CHAT', 1, '#b8bcc6', '#b8bcc6')} Messages ${u ? `<span class="badge">${u}</span>` : ''}</button>
+    <button class="menuitem" data-a="friends">${icon('ADD_FRIEND', 1, '#b8bcc6', '#4ade5a')} Friends ${req ? `<span class="badge">${req}</span>` : ''}</button>
+    <button class="menuitem" data-a="logout">${icon('CLOSE', 1, '#b8bcc6')} Sign out</button>`;
+  $('dropInner').querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
+    $('acct').classList.remove('open');
+    const a = b.dataset.a;
+    if (a === 'stats') openPlayer(me.name);
+    if (a === 'messages') openSide();
+    if (a === 'friends') openFriends();
+    if (a === 'logout') { api('/api/auth/logout', {}).catch(() => {}); signOutLocal(); }
+  });
+}
+async function login(register) {
+  const u = $('lu').value.trim(), p = $('lp').value;
+  if (!u || !p) { $('lmsg').innerHTML = '<span style="color:var(--red)">Enter a username and password</span>'; return; }
+  const btn = register ? $('lreg') : $('lin'), label = btn.textContent;
+  btn.classList.add('busy'); btn.innerHTML = `<span class="spin"></span>${register ? 'Creating...' : 'Signing in...'}`;
+  $('lmsg').innerHTML = '';
+  const wait = new Promise(r => setTimeout(r, 1100)); // short pause so the sign-in feels deliberate
+  try {
+    const [r] = await Promise.all([api(register ? '/api/auth/register' : '/api/auth/login', { username: u, password: p, mcName: u }), wait]);
+    token = r.token; try { localStorage.setItem('ncToken', token); } catch {}
+    me = r.profile; await refreshSocial(); renderAccount();
+  } catch (err) {
+    await wait;
+    btn.classList.remove('busy'); btn.textContent = label;
+    $('lmsg').innerHTML = `<span style="color:var(--red)">${esc(err.message)}</span>`;
+  }
+}
+async function refreshMe() { if (!token) return; try { me = await api('/api/me'); await refreshSocial(); renderAccount(); } catch {} }
+async function refreshSocial() { if (!token) return; try { friendsData = await api('/api/friends'); } catch {} }
+
+// ---------- stats page: live matches, counts, leaderboards
+let modes = [], mode = 'overall'; try { mode = localStorage.getItem('ncMode') || 'overall'; } catch {}
+async function loadStatus() {
+  try {
+    const s = await api('/api/status');
+    $('srvState').innerHTML = '<span style="color:var(--green)">● ONLINE</span>';
+    if (STATIC) renderAccount();
+    $('counts').innerHTML = `<div><b>${s.online}</b> online</div><div><b>${s.queueing}</b> in queue</div><div><b>${s.inMatch}</b> in a match</div>
+      <div><b>${s.players}</b> players · season <b>${s.season}</b></div><div class="dim">Peak today ${s.peakToday} · all-time ${s.allTimePeak}</div>`;
+    $('footL').textContent = `© NasCraf Ranked · Season ${s.season}`; $('bsOnline').textContent = s.online;
+    $('footR').textContent = `${s.online} online · ${s.queueing} queueing · ${s.inMatch} in a match`;
+    if (!modes.length && s.modes) { modes = s.modes; buildTabs(); loadBoard(); }
+  } catch {
+    $('srvState').innerHTML = '<span style="color:var(--red)">● OFFLINE</span>';
+    $('counts').innerHTML = '<div class="dim">Can\'t reach the ranked server</div>';
+    $('footR').textContent = 'Ranked server offline'; $('bsOnline').textContent = '–';
+  }
+}
+function buildTabs() {
+  const all = [{ id: 'overall', name: 'Overall' }, ...modes];
+  if (!all.some(m => m.id === mode)) mode = 'overall';
+  $('tabs').innerHTML = all.map(m => `<button class="tile${m.id === mode ? ' sel' : ''}" data-m="${esc(m.id)}">${esc(m.name)}</button>`).join('');
+  $('tabs').querySelectorAll('[data-m]').forEach(b => b.onclick = () => { mode = b.dataset.m; try { localStorage.setItem('ncMode', mode); } catch {} buildTabs(); loadBoard(); });
+}
+async function loadBoard() {
+  $('valHead').textContent = mode === 'overall' ? 'SP' : 'ELO';
+  try {
+    const { entries } = await api(`/api/leaderboard/${encodeURIComponent(mode)}?limit=100`);
+    const posColor = p => p === 1 ? 'var(--gold)' : p === 2 ? '#d8d8e0' : p === 3 ? '#cd8a4e' : 'var(--muted)';
+    $('board').innerHTML = entries.map(e => `<tr data-name="${esc(e.name)}"><td style="color:${posColor(e.position)}">#${e.position}</td>
+      <td><div class="who">${av(e.name, null, 0, e.mcName, e.mcUuid, e.icon)}<span class="nm" style="color:#fff">${esc(e.name)}${vb(e.verified)}</span></div></td><td>${rank(e.rank)}</td>
+      <td class="num val">${e.value}</td><td class="num muted">${e.wins ?? 0} / ${e.losses ?? 0}</td></tr>`).join('');
+    $('boardEmpty').classList.toggle('hide', entries.length > 0);
+    $('boardEmpty').innerHTML = 'Nobody is ranked here yet<small>Finish your placement matches to show up</small>';
+  } catch (err) {
+    $('board').innerHTML = ''; $('boardEmpty').classList.remove('hide');
+    $('boardEmpty').innerHTML = `Couldn't load the leaderboard<small>${esc(err.message)}</small>`;
+  }
+}
+$('board').onclick = e => { const tr = e.target.closest('tr[data-name]'); if (tr) openPlayer(tr.dataset.name); };
+async function loadLive() {
+  try {
+    const { matches } = await api('/api/matches/live');
+    $('liveN').textContent = matches.length ? matches.length + ' LIVE' : '';
+    $('liveList').innerHTML = matches.length ? matches.slice(0, 12).map(m => {
+      const [a, b] = m.players;
+      const mid = m.state === 'pending' ? '<span class="dim">joining</span>' : `${m.score[0]} ${MODE_ICON[m.mode] || '⚔'} ${m.score[1]}`;
+      return `<div class="live-row" title="${esc(m.modeName)}${m.unranked ? ' · party duel' : ''}"><span class="nm" data-name="${esc(a.name)}">${esc(a.name)}${vb(a.verified)}</span>
+        <span class="c">${mid}</span><span class="nm r" data-name="${esc(b.name)}">${esc(b.name)}${vb(b.verified)}</span></div>`;
+    }).join('') : '<div class="dim" style="padding:8px 10px">No matches right now</div>';
+  } catch { $('liveList').innerHTML = '<div class="dim" style="padding:8px 10px">Ranked server offline</div>'; }
+}
+$('liveList').onclick = e => { const n = e.target.closest('[data-name]'); if (n) openPlayer(n.dataset.name); };
+
+// ---------- windows (slide down)
+function openWin(html) {
+  $('win').innerHTML = html;
+  $('scrim').classList.add('show');
+  requestAnimationFrame(() => $('winwrap').classList.add('open'));
+  $('win').querySelectorAll('[data-close]').forEach(b => b.onclick = closeWin);
+}
+function closeWin() { $('winwrap').classList.remove('open'); if (!$('side').classList.contains('open')) $('scrim').classList.remove('show'); friendsOpen = false; }
+$('winwrap').addEventListener('click', e => { if (e.target.id === 'winwrap') closeWin(); });
+const closeX = `<button class="x" data-close>${icon('CLOSE', 1, '#9da0a8')}</button>`;
+
+async function openPlayer(name) {
+  closeWin(); closeSide();
+  showPage('profile'); window.scrollTo(0, 0);
+  $('pageProfile').innerHTML = `<div class="panel empty">Loading ${esc(name)}...</div>`;
+  let p;
+  try { p = await api('/api/profile/' + encodeURIComponent(name)); }
+  catch (err) { $('pageProfile').innerHTML = `<button class="back" id="pBack">‹ Back</button><div class="panel empty">Player not found<small>${esc(err.message)}</small></div>`; $('pBack').onclick = () => showPage('stats'); return; }
+  renderProfile(p);
+}
+function renderProfile(p, editing) {
+  const mine = me && me.name.toLowerCase() === p.name.toLowerCase();
+  const total = p.wins + p.losses;
+  const cards = modes.map(m => {
+    const s = p.modes[m.id] || {}, r = s.rank;
+    const body = s.placementsLeft > 0 ? `<div class="dim">${3 - s.placementsLeft}/3 placements</div>`
+      : `<div>${rank(r)}</div><div class="prog"><i style="width:${Math.min(100, Math.max(4, ((s.elo || 0) - 400) / 18))}%;background:${esc(r && r.color)}"></i></div><div class="muted" style="font-size:14px">${s.elo} ELO · peak ${s.peakElo ?? s.elo}</div>`;
+    return `<div class="cell"><div class="t">${MODE_ICON[m.id] || '⚔'} ${esc(m.name.toUpperCase())}</div>${body}<div class="dim" style="font-size:14px">${s.wins || 0}W / ${s.losses || 0}L${s.streak > 1 ? ` · ${s.streak} win streak` : ''}</div></div>`;
+  }).join('');
+  const recent = (p.recent || []).map(r => `<div><span class="${r.won ? 'w' : 'l'}">${r.won ? 'WIN' : 'LOSS'} ${esc(r.score)}</span>
+    <span>vs <a class="plink" data-name="${esc(r.opponent)}">${esc(r.opponent)}</a></span>
+    <span class="dim">${esc((modes.find(m => m.id === r.mode) || {}).name || r.mode)}${r.eloChange != null ? ` · ${r.eloChange >= 0 ? '+' : ''}${r.eloChange} ELO` : r.placement ? ' · placement' : ''} · ${ago(r.at)}</span></div>`).join('')
+    || '<div class="dim">No matches yet</div>';
+  const bio = editing
+    ? `<div class="bio bio-edit"><textarea id="bioText" maxlength="200" placeholder="Tell people about yourself (200 characters)">${esc(p.bio || '')}</textarea>
+        <div style="display:flex;gap:6px;margin-top:8px;align-items:center"><button class="primary" id="bioSave">Save bio</button><button class="tile" id="bioCancel">Cancel</button><span class="dim" id="bioCount" style="margin-left:auto"></span></div></div>`
+    : `<div class="bio${p.bio ? '' : ' empty-bio'}">${p.bio ? esc(p.bio) : mine ? 'You haven\'t written a bio yet.' : 'This player hasn\'t written a bio yet.'}</div>`;
+  $('pageProfile').innerHTML = `<button class="back" id="pBack">‹ Back</button>
+    <div class="panel prof-top">${av(p.name, p.status, 128, p.mcName, p.mcUuid, p.icon)}
+      <div style="min-width:0"><div class="prof-name">${esc(p.name)}${vb(p.verified)}</div>
+        <div class="prof-sub"><span style="color:${statusColor(p.status)}">● ${statusText(p.status)}</span>${rank(p.overall)}<span class="muted">${p.sp} SP</span>
+          <span class="dim">Joined ${new Date(p.created).toLocaleDateString()}</span></div></div>
+      <div class="prof-actions">${mine ? (editing ? '' : '<button class="tile" id="bioEdit">Edit bio</button>') : me ? '<button class="primary" id="pMsg">Message</button><button class="tile" id="pAdd">Add friend</button>' : ''}</div>
+    </div>
+    <div class="panel" style="margin-top:16px"><div class="ph"><b>BIO</b></div>${bio}</div>
+    <div class="msg" id="pOut"></div>
+    <div class="stat-grid" style="margin-top:10px">
+      <div class="cell"><div class="t">OVERALL RANK</div><div class="big" style="color:${esc(p.overall.color)}">${esc(p.overall.name)}</div></div>
+      <div class="cell"><div class="t">SEASON POINTS</div><div class="big">${p.sp}</div></div>
+      <div class="cell"><div class="t">AVERAGE ELO</div><div class="big">${p.overallElo}</div></div>
+      <div class="cell"><div class="t">WINS / LOSSES</div><div class="big">${p.wins} / ${p.losses}</div><div class="dim" style="font-size:14px">${total ? Math.round(p.wins * 100 / total) + '% win rate' : 'no matches yet'}</div></div>
+      <div class="cell"><div class="t">☠ MOB RUN BEST</div><div class="big">${p.mobrun && p.mobrun.bestMs ? (p.mobrun.bestMs / 1000).toFixed(1) + 's' : '—'}</div><div class="dim" style="font-size:14px">${p.mobrun ? `${p.mobrun.finishes}/${p.mobrun.runs} finished · furthest ${p.mobrun.bestDistance}m` : 'no runs yet'}</div></div>
+    </div>
+    <div class="panel" style="margin-top:16px"><div class="ph"><b>GAMEMODES</b></div><div class="stat-grid" style="padding:12px">${cards}</div></div>
+    <div class="panel" style="margin-top:16px"><div class="ph"><b>RECENT MATCHES</b></div><div class="recent" style="padding:6px 12px">${recent}</div></div>`;
+  $('pBack').onclick = () => showPage('stats');
+  $('pageProfile').querySelectorAll('[data-name]').forEach(a => a.onclick = () => openPlayer(a.dataset.name));
+  if ($('bioEdit')) $('bioEdit').onclick = () => renderProfile(p, true);
+  if ($('bioText')) {
+    const t = $('bioText'), count = () => $('bioCount').textContent = `${t.value.length}/200`;
+    t.oninput = count; count(); t.focus();
+    $('bioCancel').onclick = () => renderProfile(p);
+    $('bioSave').onclick = async () => {
+      const b = $('bioSave'); b.classList.add('busy'); b.innerHTML = '<span class="spin"></span>Saving...';
+      try { const np = await api('/api/profile/bio', { bio: t.value }); me = np; renderAccount(); renderProfile({ ...p, bio: np.bio }); }
+      catch (err) { b.classList.remove('busy'); b.textContent = 'Save bio'; $('bioCount').innerHTML = `<span style="color:var(--red)">${esc(err.message)}</span>`; }
+    };
+  }
+  if ($('pMsg')) {
+    $('pMsg').onclick = () => openSide(p.name);
+    $('pAdd').onclick = async () => { try { const r = await api('/api/friends/request', { name: p.name }); friendsData = r; $('pOut').innerHTML = `<span style="color:var(--green)">${esc(r.message)}</span>`; renderAccount(); } catch (err) { $('pOut').innerHTML = `<span style="color:var(--red)">${esc(err.message)}</span>`; } };
+  }
+}
+
+// ---------- friends window (Requests / Friends / Sent)
+let friendsOpen = false, ftab = 'friends', fmsg = '';
+function openFriends() { friendsOpen = true; if (friendsData && friendsData.incoming.length) ftab = 'requests'; renderFriends(true); }
+function renderFriends(first) {
+  const d = friendsData || { friends: [], incoming: [], outgoing: [], count: 0, online: 0 };
+  let rows = '';
+  if (ftab === 'friends') rows = d.friends.filter(f => f.friend).map(f => `<div class="frow">${av(f.name, f.status, 0, f.mcName, f.mcUuid, f.icon)}<div class="meta"><div class="nm" style="color:#fff">${esc(f.name)}${vb(f.verified)}</div><div style="font-size:12px;color:${statusColor(f.status)}">${statusText(f.status)}</div></div>
+      <button class="sbtn go" data-act="message" data-n="${esc(f.name)}">Message</button><button class="sbtn" data-act="remove" data-n="${esc(f.name)}">Remove</button></div>`).join('');
+  if (ftab === 'requests') rows = d.incoming.map(n => `<div class="frow">${av(n)}<div class="meta"><div style="color:#fff">${esc(n)}</div><div class="dim" style="font-size:12px">Wants to be friends</div></div>
+      <button class="sbtn go" data-act="accept" data-n="${esc(n)}">Accept</button><button class="sbtn" data-act="decline" data-n="${esc(n)}">Decline</button></div>`).join('');
+  if (ftab === 'sent') rows = d.outgoing.map(n => `<div class="frow">${av(n)}<div class="meta"><div style="color:#fff">${esc(n)}</div><div class="dim" style="font-size:12px">Request sent</div></div>
+      <button class="sbtn" data-act="decline" data-n="${esc(n)}">Cancel</button></div>`).join('');
+  const empty = { friends: ['No friends yet', 'Add one above with their ranked account name'], requests: ['No friend requests', 'Requests other players send you show up here'], sent: ['No pending requests', 'Requests you send show up here until accepted'] }[ftab];
+  const html = `<div class="head">${icon('FRIEND', 1, '#e8c77a')}<div><b>Friends</b><div class="muted" style="font-size:12px">${d.count} FRIEND${d.count === 1 ? '' : 'S'} · ${d.online} ONLINE</div></div>${closeX}</div>
+    <div class="body">
+      <div style="display:flex;gap:6px"><div class="field" style="flex:1">${icon('FRIEND', 1, '#5e626b')}<input id="fname" placeholder="Ranked account name" maxlength="16"></div><button class="primary" id="fsend">Send Request</button></div>
+      <div class="dim" style="font-size:12px;margin:6px 0 8px">FRIENDS SEE WHEN YOU'RE ONLINE AND CAN MESSAGE YOU</div>
+      <div class="ftabs">${['requests', 'friends', 'sent'].map(t => `<button data-t="${t}" class="${t === ftab ? 'on' : ''}">${t[0].toUpperCase() + t.slice(1)}${t === 'requests' && d.incoming.length ? ` (${d.incoming.length})` : t === 'sent' && d.outgoing.length ? ` (${d.outgoing.length})` : ''}</button>`).join('')}</div>
+      <div style="min-height:160px;margin-top:4px">${rows || `<div class="empty">${empty[0]}<small>${empty[1]}</small></div>`}</div>
+      <div class="msg" id="fmsg">${fmsg}</div>
+    </div>`;
+  if (first) openWin(html); else { $('win').innerHTML = html; $('win').querySelectorAll('[data-close]').forEach(b => b.onclick = closeWin); }
+  $('win').querySelectorAll('[data-t]').forEach(b => b.onclick = () => { ftab = b.dataset.t; fmsg = ''; renderFriends(); });
+  const send = async () => { const n = $('fname').value.trim(); if (!n) return; await friendAct('request', n); };
+  $('fsend').onclick = send; $('fname').onkeydown = e => { if (e.key === 'Enter') send(); };
+  $('win').querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+    const a = b.dataset.act, n = b.dataset.n;
+    if (a === 'message') { closeWin(); openSide(n); return; }
+    if (a === 'remove' && b.textContent !== 'Sure?') { b.textContent = 'Sure?'; b.classList.add('danger'); return; }
+    friendAct(a, n);
+  });
+}
+async function friendAct(a, n) {
+  try { const r = await api('/api/friends/' + a, { name: n }); friendsData = r; fmsg = r.message ? `<span style="color:var(--green)">${esc(r.message)}</span>` : ''; }
+  catch (err) { fmsg = `<span style="color:var(--red)">${esc(err.message)}</span>`; }
+  renderFriends(); renderAccount();
+}
+
+// ---------- messages panel (slides in from the left, like the game)
+let chatWith = null, chat = null, sideOpen = false;
+function openSide(withName) {
+  if (!me) { $('acct').classList.add('open'); return; }
+  sideOpen = true; chatWith = withName || null; chat = null;
+  $('scrim').classList.add('show'); $('side').classList.add('open');
+  renderSide(); refreshSocial().then(renderSide); if (chatWith) loadChat();
+}
+function closeSide() { sideOpen = false; $('side').classList.remove('open'); if (!$('winwrap').classList.contains('open')) $('scrim').classList.remove('show'); }
+$('scrim').onclick = () => { closeSide(); closeWin(); };
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if ($('winwrap').classList.contains('open')) closeWin(); else if (chatWith && sideOpen) { chatWith = null; renderSide(); } else closeSide();
+});
+function renderSide() {
+  if (!sideOpen) return;
+  const d = friendsData;
+  if (chatWith) {
+    const st = chat ? chat.status : 'offline';
+    $('side').innerHTML = `<div class="head"><button class="x" id="back" style="font-size:22px;color:var(--muted);width:24px">‹</button>${(() => { const f = (friendsData && friendsData.friends.find(x => x.name === chatWith)) || {}; return av(chatWith, st, 26, f.mcName, f.mcUuid, f.icon); })()}
+      <div style="min-width:0;flex:1"><div class="nm" style="color:#fff">${esc(chatWith)}</div><div style="font-size:12px;color:${statusColor(st)}">${statusText(st)}${chat && !chat.friend ? ' · not a friend' : ''}</div></div>
+      <button class="x" id="sclose">${icon('CLOSE', 1, '#9da0a8')}</button></div>
+      <div class="bubbles" id="bubbles"></div>
+      <div class="dim" id="chatNote" style="padding:0 10px;font-size:13px"></div>
+      <div class="compose"><div class="field"><input id="dm" placeholder="Message..." maxlength="200" autocomplete="off"></div><button class="tile" id="dmSend">Send</button></div>`;
+    $('back').onclick = () => { chatWith = null; renderSide(); };
+    $('sclose').onclick = closeSide;
+    $('dmSend').onclick = sendDm; $('dm').onkeydown = e => { if (e.key === 'Enter') sendDm(); };
+    $('dm').focus();
+    renderBubbles();
+    return;
+  }
+  const q = ($('sq') && $('sq').value || '').toLowerCase();
+  const list = d ? d.friends.filter(f => !q || f.name.toLowerCase().includes(q)) : [];
+  const friendsOnly = !d || d.privacy === 'friends';
+  $('side').innerHTML = `<div class="head">${icon('CHAT', 2, '#cfe8f0', '#cfe8f0')}<div style="flex:1"><div class="title shadow">Messages</div>
+      <div class="sub" style="color:${d && d.online ? 'var(--green)' : 'var(--muted)'}"><span style="width:5px;height:5px;background:currentColor;display:inline-block"></span>${d ? d.online : 0} ONLINE</div></div>
+      <button class="tile" id="addf" style="padding:4px" title="Add friends">${icon('ADD_FRIEND', 1, '#b8bcc6', '#4ade5a')}</button>
+      <button class="x" id="sclose">${icon('CLOSE', 1, '#9da0a8')}</button></div>
+    <div style="padding:8px 10px"><div class="field">${icon('SEARCH', 1, '#9da0a8')}<input id="sq" placeholder="Search friends" maxlength="16" value="${esc(q)}"></div></div>
+    <div class="list" id="convs">${!d ? '<div class="empty">Loading...</div>' : !d.friends.length ? `<div class="empty" style="padding-top:60px"><div style="display:flex;justify-content:center;margin-bottom:10px">${icon('ADD_FRIEND', 2, '#6a6e78', '#4ade5a')}</div><div style="color:#fff">No friends yet</div><small>Add friends to see when they're online and message them.</small><div style="margin-top:12px"><button class="primary" id="addf2">Add Friends</button></div></div>`
+      : !list.length ? '<div class="empty">No friends match</div>'
+      : list.map(f => {
+        const sub = f.last ? (f.last.fromMe ? 'You: ' : '') + f.last.text : statusText(f.status) + (f.friend ? '' : ' · not a friend');
+        return `<div class="conv" data-n="${esc(f.name)}">${av(f.name, f.status, 0, f.mcName, f.mcUuid, f.icon)}<div class="meta"><div class="nm" style="color:${f.unread ? '#fff' : 'var(--text)'}">${esc(f.name)}${vb(f.verified)}</div>
+          <div class="nm" style="font-size:13px;color:${f.last ? (f.unread ? 'var(--text)' : 'var(--dim)') : statusColor(f.status)}">${esc(sub)}</div></div>
+          <div style="text-align:right">${f.last ? `<div class="when">${ago(f.last.at)}</div>` : ''}${f.unread ? `<span class="badge">${f.unread}</span>` : ''}</div></div>`;
+      }).join('')}</div>
+    <div class="foot" id="priv"><span>${friendsOnly ? 'ONLY FRIENDS CAN MESSAGE' : 'ANYONE CAN MESSAGE YOU'}</span><b>CHANGE</b></div>`;
+  $('sclose').onclick = closeSide;
+  $('addf').onclick = openFriends; if ($('addf2')) $('addf2').onclick = openFriends;
+  $('sq').oninput = () => { const pos = $('sq').selectionStart; renderSide(); $('sq').focus(); $('sq').setSelectionRange(pos, pos); };
+  $('convs').onclick = e => { const c = e.target.closest('[data-n]'); if (c) { chatWith = c.dataset.n; chat = null; renderSide(); loadChat(); } };
+  $('priv').onclick = async () => { try { friendsData = await api('/api/dm/privacy', { privacy: friendsOnly ? 'everyone' : 'friends' }); renderSide(); } catch {} };
+}
+function renderBubbles() {
+  const box = $('bubbles'); if (!box) return;
+  if (!chat) { box.innerHTML = '<div class="empty">Loading...</div>'; return; }
+  if (!chat.messages.length) { box.innerHTML = `<div class="empty" style="margin:auto">${icon('CHAT', 2, '#3a3f49', '#3a3f49')}<div style="margin-top:8px">Say hi to ${esc(chatWith)}!</div></div>`; }
+  else {
+    let html = '', prev = 0;
+    for (const m of chat.messages) {
+      if (!prev || m.at - prev > 10 * 60000) html += `<div class="stamp">${clock(m.at)}</div>`;
+      html += `<div class="bub ${m.me ? 'me' : 'them'}${m.pending ? ' pending' : ''}">${esc(m.text)}</div>`;
+      prev = m.at;
+    }
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    box.innerHTML = html;
+    if (atBottom || box.dataset.first !== '1') { box.scrollTop = box.scrollHeight; box.dataset.first = '1'; }
+  }
+  $('chatNote').textContent = chat.canMessage === false ? `${chatWith} only accepts messages from friends` : '';
+}
+async function loadChat() {
+  const w = chatWith; if (!w) return;
+  try { const c = await api('/api/dm/' + encodeURIComponent(w)); if (w === chatWith) { chat = c; renderBubbles(); const h = $('side').querySelector('.head div div:last-child'); if (h) h.style.color = statusColor(c.status), h.textContent = statusText(c.status) + (c.friend ? '' : ' · not a friend'); } }
+  catch (err) { if ($('chatNote')) $('chatNote').innerHTML = `<span style="color:var(--red)">${esc(err.message)}</span>`; }
+}
+async function sendDm() {
+  const input = $('dm'), text = input.value.trim(); if (!text || !chatWith) return;
+  input.value = '';
+  if (chat) { chat.messages.push({ text, at: Date.now(), me: true, pending: true }); renderBubbles(); $('bubbles').scrollTop = 1e9; }
+  try { await api('/api/dm/' + encodeURIComponent(chatWith), { text }); }
+  catch (err) { $('chatNote').innerHTML = `<span style="color:var(--red)">${esc(err.message)}</span>`; input.value = text; }
+  loadChat();
+}
+
+// ---------- community home
+async function loadCommunity() {
+  try {
+    const c = await api('/api/community');
+    $('bsPlayers').textContent = c.players; $('bsToday').textContent = c.matchesToday; $('bsTotal').textContent = c.totalMatches;
+    $('seasonTag').textContent = 'SEASON ' + c.season;
+    $('feed').innerHTML = c.recent.length ? c.recent.map(m => {
+      const [a, b] = m.players, aw = m.winner === a;
+      return `<div class="feed-row"><span class="dim">${MODE_ICON[m.mode] || '⚔'} ${esc(m.modeName)}</span>
+        <span class="nm"><a class="plink" data-name="${esc(a)}" style="color:${aw ? 'var(--green)' : 'var(--text)'}">${esc(a)}</a>${vb(m.verified && m.verified[0])} <span class="dim">vs</span> <a class="plink" data-name="${esc(b)}" style="color:${!aw ? 'var(--green)' : 'var(--text)'}">${esc(b)}</a>${vb(m.verified && m.verified[1])}${m.unranked ? ' <span class="dim">· party</span>' : ''}${m.forfeit ? ' <span class="dim">· forfeit</span>' : ''}</span>
+        <span style="color:var(--gold)">${m.score[0]} - ${m.score[1]} <span class="dim" style="font-size:13px">${ago(m.finished)}</span></span></div>`;
+    }).join('') : '<div class="empty">No matches played yet<small>Results show up here as soon as matches finish</small></div>';
+    $('modesGrid').innerHTML = c.modes.map(m => `<div class="mcard" data-m="${esc(m.id)}"><div class="ic2">${MODE_ICON[m.id] || '⚔'}</div><div class="n">${esc(m.name)}</div>
+      <div class="dim" style="font-size:14px">First to ${m.firstTo} · ${m.ranked} ranked · ${m.played} played</div>
+      <div style="margin-top:6px;font-size:15px">${m.top ? `#1 <span style="color:#fff">${esc(m.top.name)}</span> · ${rank(m.top.rank)}` : '<span class="dim">No one ranked yet</span>'}</div></div>`).join('');
+  } catch {}
+  try {
+    const { entries } = await api('/api/leaderboard/overall?limit=3');
+    const order = [1, 0, 2], cls = ['p1', 'p2', 'p3'], col = ['var(--gold)', '#d8d8e0', '#cd8a4e'];
+    $('podium').innerHTML = order.map(i => {
+      const e = entries[i];
+      if (!e) return `<div class="pod ${cls[i]}"><div class="place" style="color:${col[i]}">#${i + 1}</div><div class="dim" style="padding:20px 0">Open spot</div></div>`;
+      return `<div class="pod ${cls[i]}" data-name="${esc(e.name)}"><div class="place" style="color:${col[i]}">#${i + 1}</div>${av(e.name, null, 48, e.mcName, e.mcUuid, e.icon)}
+        <div style="color:#fff" class="nm">${esc(e.name)}${vb(e.verified)}</div><div style="font-size:14px">${rank(e.rank)}</div><div class="val">${e.value} SP</div></div>`;
+    }).join('');
+  } catch {}
+}
+$('podium').onclick = e => { const n = e.target.closest('[data-name]'); if (n) openPlayer(n.dataset.name); };
+$('feed').onclick = e => { const n = e.target.closest('[data-name]'); if (n) openPlayer(n.dataset.name); };
+$('modesGrid').onclick = e => { const c = e.target.closest('[data-m]'); if (!c) return; mode = c.dataset.m; buildTabs(); showTab('leaderboards'); };
+function go(where) {
+  if (where === 'news') return showPage('news');
+  showPage('stats');
+  if (where === 'account') { window.scrollTo({ top: 0, behavior: 'smooth' }); setTimeout(() => $('acct').classList.add('open'), 50); return; }
+  showTab({ howto: 'howto', board: 'leaderboards', live: 'overview', faq: 'faq' }[where] || 'overview');
+  $('siteTabs').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+$('ctaJoin').onclick = e => { e.stopPropagation(); go('howto'); };
+$('ctaBoard').onclick = e => { e.stopPropagation(); go('board'); };
+$('ctaAcct').onclick = e => { e.stopPropagation(); me ? openPlayer(me.name) : go('account'); };
+document.querySelectorAll('[data-go]').forEach(a => a.onclick = e => { e.stopPropagation(); go(a.dataset.go); });
+
+// ---------- start
+renderAccount(); loadStatus(); loadLive(); if (!STATIC) refreshMe(); loadCommunity();
+if (STATIC) setInterval(renderAccount, 30000);
+setInterval(loadCommunity, 30000);
+api('/api/version').then(v => { $('footVer').textContent = 'Mod version ' + v.latestModVersion; }).catch(() => {});
+setInterval(loadStatus, 10000);
+setInterval(loadLive, 5000);
+setInterval(() => { if (!$('pageStats').classList.contains('hide')) loadBoard(); }, 30000);
+setInterval(async () => {   // keep messages / requests fresh
+  if (!token) return;
+  await refreshSocial(); renderAccount();
+  if (sideOpen && !chatWith && document.activeElement !== $('sq')) renderSide();
+  if (friendsOpen && document.activeElement !== $('fname')) renderFriends();
+}, 6000);
+setInterval(() => { if (sideOpen && chatWith) loadChat(); }, 2500);
+setInterval(refreshMe, 60000);
+</script>
+</body>
+</html>
